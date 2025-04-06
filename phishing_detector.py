@@ -106,7 +106,7 @@ def analyze_emails(task_id, credentials_dict):
         analysis_results[task_id] = None
         task_status[task_id] = 'failed'
 
-@app.route('/')
+@app.route('/phishing')
 def index():
     if 'task_id' in session:
         task_id = session['task_id']

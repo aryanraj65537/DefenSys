@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, redirect, url_for, session
 import pandas as pd
 import numpy as np
 import joblib
@@ -7,70 +7,67 @@ import os
 import statistics
 from scapy.all import rdpcap
 
+# For phishing detection
+import openai
+import base64
+import threading
+import uuid
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+# --------------------------------------------------------------------------------
+# FLASK APP INITIALIZATION
+# --------------------------------------------------------------------------------
+
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# --------------------------------------------------------------------------------
+# OPENAI / PHISHING DETECTION CONFIGURATION
+# --------------------------------------------------------------------------------
+
+OPENAI_API_KEY = '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'
+openai.api_key = OPENAI_API_KEY
+
+CREDENTIALS_FILE = 'client_secret_903427469855-lfuog49uqdva54j2i02tujirj559jpro.apps.googleusercontent.com.json'
+NUM_EMAILS = 5
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+# Configure OAuth flow
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+flow = Flow.from_client_secrets_file(
+    CREDENTIALS_FILE,
+    scopes=SCOPES,
+    redirect_uri='http://localhost:5000/callback'
+)
+
+# --------------------------------------------------------------------------------
+# GLOBAL STATE FOR PHISHING DETECTION
+# --------------------------------------------------------------------------------
+
+analysis_results = {}
+task_status = {}
+
+# --------------------------------------------------------------------------------
+# KNN MODEL / SCALER LOADING
+# --------------------------------------------------------------------------------
 
 knn_model = joblib.load("knn_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
+# --------------------------------------------------------------------------------
+# FEATURES / LABEL MAPPING
+# --------------------------------------------------------------------------------
+
 TRAINING_COLUMNS = [
-    "Flow Duration",
-    "Total Fwd Packets",
-    "Total Backward Packets",
-    "Fwd Packets Length Total",
-    "Bwd Packets Length Total",
-    "Fwd Packet Length Max",
-    "Fwd Packet Length Mean",
-    "Fwd Packet Length Std",
-    "Bwd Packet Length Max",
-    "Bwd Packet Length Mean",
-    "Bwd Packet Length Std",
-    "Flow Bytes/s",
-    "Flow Packets/s",
-    "Flow IAT Mean",
-    "Flow IAT Std",
-    "Flow IAT Max",
-    "Flow IAT Min",
-    "Fwd IAT Total",
-    "Fwd IAT Mean",
-    "Fwd IAT Std",
-    "Fwd IAT Max",
-    "Fwd IAT Min",
-    "Bwd IAT Total",
-    "Bwd IAT Mean",
-    "Bwd IAT Std",
-    "Bwd IAT Max",
-    "Bwd IAT Min",
-    "Fwd PSH Flags",
-    "Fwd Header Length",
-    "Bwd Header Length",
-    "Fwd Packets/s",
-    "Bwd Packets/s",
-    "Packet Length Max",
-    "Packet Length Mean",
-    "Packet Length Std",
-    "Packet Length Variance",
-    "SYN Flag Count",
-    "URG Flag Count",
-    "Avg Packet Size",
-    "Avg Fwd Segment Size",
-    "Avg Bwd Segment Size",
-    "Subflow Fwd Packets",
-    "Subflow Fwd Bytes",
-    "Subflow Bwd Packets",
-    "Subflow Bwd Bytes",
-    "Init Fwd Win Bytes",
-    "Init Bwd Win Bytes",
-    "Fwd Act Data Packets",
-    "Fwd Seg Size Min",
-    "Active Mean",
-    "Active Std",
-    "Active Max",
-    "Active Min",
-    "Idle Mean",
-    "Idle Std",
-    "Idle Max",
-    "Idle Min",
-    # Exclude "ClassLabel" from features
+    'Avg Packet Size', 'Packet Length Mean', 'Bwd Packet Length Std', 'Packet Length Variance',
+    'Bwd Packet Length Max', 'Packet Length Max', 'Packet Length Std', 'Fwd Packet Length Mean',
+    'Avg Fwd Segment Size', 'Flow Bytes/s', 'Avg Bwd Segment Size', 'Bwd Packet Length Mean',
+    'Fwd Packets/s', 'Flow Packets/s', 'Init Fwd Win Bytes', 'Subflow Fwd Bytes',
+    'Fwd Packets Length Total', 'Fwd Act Data Packets', 'Total Fwd Packets', 'Subflow Fwd Packets'
 ]
 
 def label_to_category(label):
@@ -86,32 +83,31 @@ def label_to_category(label):
     }
     return mapping.get(label, None)
 
+# --------------------------------------------------------------------------------
+# PCAP FEATURE EXTRACTION
+# --------------------------------------------------------------------------------
+
 def extract_features_from_pcap(file_storage):
     """
-    Reads the uploaded pcap file, assumes the pcap represents one flow,
-    and computes many of the features required by the KNN model.
-    
-    The forward direction is defined as packets whose source IP equals the
-    source IP of the first packet (if available). Many of the features (e.g.,
-    active/idle durations, subflow metrics) are computed in a simplified way.
-    
-    Returns a DataFrame with one row of features.
+    Extracts the 20 positive-correlation features from the given pcap file.
+    This function writes the uploaded pcap file to a temporary file, reads it using Scapy,
+    and computes the features. In a production system you would replace these dummy/calculated
+    values with real flow analysis logic.
     """
-    # Save the uploaded pcap file to a temporary file
+    # Write the uploaded file to a temporary file.
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(file_storage.read())
         tmp_path = tmp.name
 
-    # Read packets using Scapy
     packets = rdpcap(tmp_path)
     os.remove(tmp_path)
 
+    # If no packets, return zeros.
     if len(packets) == 0:
-        # No packets found; return zeros for all features.
         features = {col: 0 for col in TRAINING_COLUMNS}
         return pd.DataFrame([features])
 
-    # Determine forward direction using the source IP of the first packet, if possible.
+    # Determine forward direction using the source IP of the first packet.
     first_pkt = packets[0]
     if "IP" in first_pkt:
         fwd_ip = first_pkt["IP"].src
@@ -120,33 +116,15 @@ def extract_features_from_pcap(file_storage):
     else:
         fwd_ip = None
 
-    # Initialize lists and counters for feature calculation.
+    # Lists and counters for feature calculation.
     fwd_packets = []
-    bwd_packets = []
     all_packet_lengths = []
     all_timestamps = []
 
-    # Variables for TCP flag counts and header lengths (only computed if TCP layer is present).
-    fwd_psh_count = 0
-    fwd_syn_count = 0
-    fwd_urg_count = 0
-    fwd_header_lengths = []
-    bwd_header_lengths = []
     fwd_payload_sizes = []
-    bwd_payload_sizes = []
     total_bytes = 0
-
-    # For initial TCP window sizes, store the first observed window from each direction.
     init_fwd_win = None
-    init_bwd_win = None
 
-    # Variables for active/idle period computation.
-    active_durations = []
-    idle_durations = []
-    threshold = 1.0  # seconds to separate active from idle
-    prev_time = None
-
-    # Process each packet.
     for pkt in packets:
         pkt_time = pkt.time
         all_timestamps.append(pkt_time)
@@ -154,231 +132,105 @@ def extract_features_from_pcap(file_storage):
         all_packet_lengths.append(pkt_len)
         total_bytes += pkt_len
 
-        # Determine packet direction.
+        # Determine direction; if IP layer not available, treat as forward.
         if fwd_ip and "IP" in pkt:
             direction = "fwd" if pkt["IP"].src == fwd_ip else "bwd"
         else:
             direction = "fwd"
 
-        # Compute inter-arrival times for active/idle calculation.
-        if prev_time is not None:
-            diff = pkt_time - prev_time
-            if diff <= threshold:
-                active_durations.append(diff)
-            else:
-                idle_durations.append(diff)
-        prev_time = pkt_time
-
-        # Process TCP layer if available.
-        tcp_layer = pkt.getlayer("TCP")
-        ip_layer = pkt.getlayer("IP")
-        if tcp_layer:
-            flags = str(tcp_layer.flags)
-            # For forward packets, update flag counts.
-            if direction == "fwd":
-                if 'P' in flags:
-                    fwd_psh_count += 1
-                if 'S' in flags:
-                    fwd_syn_count += 1
-                if 'U' in flags:
-                    fwd_urg_count += 1
-            # Calculate header length.
-            # If available, tcp_layer.dataofs gives header length in 32-bit words.
-            tcp_header_len = tcp_layer.dataofs * 4 if hasattr(tcp_layer, 'dataofs') and tcp_layer.dataofs else 20
-            # Assume a standard IPv4 header length of 20 bytes if present.
-            ip_header_len = 20 if ip_layer else 0
-            header_len = tcp_header_len + ip_header_len
-            if direction == "fwd":
-                fwd_header_lengths.append(header_len)
-            else:
-                bwd_header_lengths.append(header_len)
-            # Calculate payload size (packet length minus header length).
-            payload_size = pkt_len - header_len if pkt_len > header_len else 0
-            if direction == "fwd":
-                fwd_payload_sizes.append(payload_size)
-            else:
-                bwd_payload_sizes.append(payload_size)
-            # Store initial TCP window size if not already set.
-            if direction == "fwd" and init_fwd_win is None:
-                init_fwd_win = tcp_layer.window
-            if direction == "bwd" and init_bwd_win is None:
-                init_bwd_win = tcp_layer.window
-
-        # Append packet to the corresponding list.
+        # For this simplified example we only consider forward packets.
         if direction == "fwd":
             fwd_packets.append(pkt)
-        else:
-            bwd_packets.append(pkt)
+            # Calculate payload size if TCP is present.
+            tcp_layer = pkt.getlayer("TCP")
+            ip_layer = pkt.getlayer("IP")
+            if tcp_layer:
+                # Calculate TCP header length (in bytes)
+                tcp_header_len = tcp_layer.dataofs * 4 if hasattr(tcp_layer, 'dataofs') and tcp_layer.dataofs else 20
+                # Assume IPv4 header length is 20 bytes.
+                ip_header_len = 20 if ip_layer else 0
+                header_len = tcp_header_len + ip_header_len
+            else:
+                header_len = 0
+            payload = pkt_len - header_len if pkt_len > header_len else 0
+            fwd_payload_sizes.append(payload)
+            # Save initial TCP window size if available.
+            if tcp_layer and init_fwd_win is None:
+                init_fwd_win = tcp_layer.window
 
-    # Compute flow duration.
-    flow_duration = max(all_timestamps) - min(all_timestamps)
-    if flow_duration <= 0:
-        flow_duration = 0.001  # prevent division by zero
-
-    # Total forward and backward packet counts.
+    # Compute statistics for forward packets.
     total_fwd_packets = len(fwd_packets)
-    total_bwd_packets = len(bwd_packets)
-
-    # Compute total bytes for forward and backward directions.
     fwd_packets_length_total = sum(len(pkt) for pkt in fwd_packets)
-    bwd_packets_length_total = sum(len(pkt) for pkt in bwd_packets)
 
-    # Compute forward packet length statistics.
     if fwd_packets:
         fwd_lengths = [len(pkt) for pkt in fwd_packets]
-        fwd_max = max(fwd_lengths)
         fwd_mean = statistics.mean(fwd_lengths)
-        fwd_std = statistics.stdev(fwd_lengths) if len(fwd_lengths) > 1 else 0
     else:
-        fwd_max = fwd_mean = fwd_std = 0
+        fwd_mean = 0
 
-    # Compute backward packet length statistics.
-    if bwd_packets:
-        bwd_lengths = [len(pkt) for pkt in bwd_packets]
-        bwd_max = max(bwd_lengths)
-        bwd_mean = statistics.mean(bwd_lengths)
-        bwd_std = statistics.stdev(bwd_lengths) if len(bwd_lengths) > 1 else 0
-    else:
-        bwd_max = bwd_mean = bwd_std = 0
+    # Overall flow metrics.
+    flow_duration = max(all_timestamps) - min(all_timestamps)
+    if flow_duration <= 0:
+        flow_duration = 0.001
 
-    # Compute overall flow metrics.
     total_bytes_flow = sum(all_packet_lengths)
     flow_bytes_per_sec = total_bytes_flow / flow_duration
     flow_packets_per_sec = len(all_packet_lengths) / flow_duration
 
-    # Inter-arrival times (IAT) for all packets.
-    all_iats = [t2 - t1 for t1, t2 in zip(all_timestamps, all_timestamps[1:])]
-    flow_iat_mean = statistics.mean(all_iats) if all_iats else 0
-    flow_iat_std = statistics.stdev(all_iats) if len(all_iats) > 1 else 0
-    flow_iat_max = max(all_iats) if all_iats else 0
-    flow_iat_min = min(all_iats) if all_iats else 0
-
-    # IAT metrics for forward packets.
-    fwd_times = [pkt.time for pkt in fwd_packets]
-    fwd_iats = [t2 - t1 for t1, t2 in zip(fwd_times, fwd_times[1:])]
-    fwd_iat_total = sum(fwd_iats) if fwd_iats else 0
-    fwd_iat_mean = statistics.mean(fwd_iats) if fwd_iats else 0
-    fwd_iat_std = statistics.stdev(fwd_iats) if len(fwd_iats) > 1 else 0
-    fwd_iat_max = max(fwd_iats) if fwd_iats else 0
-    fwd_iat_min = min(fwd_iats) if fwd_iats else 0
-
-    # IAT metrics for backward packets.
-    bwd_times = [pkt.time for pkt in bwd_packets]
-    bwd_iats = [t2 - t1 for t1, t2 in zip(bwd_times, bwd_times[1:])]
-    bwd_iat_total = sum(bwd_iats) if bwd_iats else 0
-    bwd_iat_mean = statistics.mean(bwd_iats) if bwd_iats else 0
-    bwd_iat_std = statistics.stdev(bwd_iats) if len(bwd_iats) > 1 else 0
-    bwd_iat_max = max(bwd_iats) if bwd_iats else 0
-    bwd_iat_min = min(bwd_iats) if bwd_iats else 0
-
-    # Compute packets per second for forward and backward directions.
-    fwd_packets_per_sec = total_fwd_packets / flow_duration
-    bwd_packets_per_sec = total_bwd_packets / flow_duration
-
-    # Overall packet length statistics.
-    packet_length_max = max(all_packet_lengths) if all_packet_lengths else 0
+    # Overall packet statistics.
     packet_length_mean = statistics.mean(all_packet_lengths) if all_packet_lengths else 0
     packet_length_std = statistics.stdev(all_packet_lengths) if len(all_packet_lengths) > 1 else 0
     packet_length_variance = statistics.variance(all_packet_lengths) if len(all_packet_lengths) > 1 else 0
+    packet_length_max = max(all_packet_lengths) if all_packet_lengths else 0
 
-    # SYN and URG flag counts (using forward packets).
-    syn_flag_count = fwd_syn_count
-    urg_flag_count = fwd_urg_count
+    # For backward metrics, we use dummy values (set to 0) since we are only considering forward packets.
+    bwd_packet_length_mean = 0
+    bwd_packet_length_std = 0
+    bwd_packet_length_max = 0
 
-    # Average packet size.
     avg_packet_size = total_bytes_flow / len(all_packet_lengths) if all_packet_lengths else 0
-
-    # Average segment sizes (payload sizes) for forward and backward packets.
     avg_fwd_segment_size = statistics.mean(fwd_payload_sizes) if fwd_payload_sizes else 0
-    avg_bwd_segment_size = statistics.mean(bwd_payload_sizes) if bwd_payload_sizes else 0
+    avg_bwd_segment_size = 0  # Dummy, as no backward packets are considered
 
-    # For subflow metrics and active/idle periods, we use simplified/dummy values.
-    subflow_fwd_packets = 0
+    fwd_packets_per_sec = total_fwd_packets / flow_duration
+
+    # Dummy values for subflow metrics.
     subflow_fwd_bytes = 0
-    subflow_bwd_packets = 0
-    subflow_bwd_bytes = 0
+    subflow_fwd_packets = 0
 
-    # Initial window sizes (default to 0 if not found).
     init_fwd_win_bytes = init_fwd_win if init_fwd_win is not None else 0
-    init_bwd_win_bytes = init_bwd_win if init_bwd_win is not None else 0
 
-    # Forward active data packets: count of forward packets with nonzero payload.
+    # Fwd Act Data Packets: count forward packets with nonzero payload.
     fwd_act_data_packets = sum(1 for size in fwd_payload_sizes if size > 0)
-    # Minimum segment size among forward packets.
-    fwd_seg_size_min = min(fwd_payload_sizes) if fwd_payload_sizes else 0
-
-    # Active/Idle period statistics.
-    active_mean = statistics.mean(active_durations) if active_durations else 0
-    active_std = statistics.stdev(active_durations) if len(active_durations) > 1 else 0
-    active_max = max(active_durations) if active_durations else 0
-    active_min = min(active_durations) if active_durations else 0
-
-    idle_mean = statistics.mean(idle_durations) if idle_durations else 0
-    idle_std = statistics.stdev(idle_durations) if len(idle_durations) > 1 else 0
-    idle_max = max(idle_durations) if idle_durations else 0
-    idle_min = min(idle_durations) if idle_durations else 0
 
     features = {
-        "Flow Duration": flow_duration,
-        "Total Fwd Packets": total_fwd_packets,
-        "Total Backward Packets": total_bwd_packets,
-        "Fwd Packets Length Total": fwd_packets_length_total,
-        "Bwd Packets Length Total": bwd_packets_length_total,
-        "Fwd Packet Length Max": fwd_max,
-        "Fwd Packet Length Mean": fwd_mean,
-        "Fwd Packet Length Std": fwd_std,
-        "Bwd Packet Length Max": bwd_max,
-        "Bwd Packet Length Mean": bwd_mean,
-        "Bwd Packet Length Std": bwd_std,
-        "Flow Bytes/s": flow_bytes_per_sec,
-        "Flow Packets/s": flow_packets_per_sec,
-        "Flow IAT Mean": flow_iat_mean,
-        "Flow IAT Std": flow_iat_std,
-        "Flow IAT Max": flow_iat_max,
-        "Flow IAT Min": flow_iat_min,
-        "Fwd IAT Total": fwd_iat_total,
-        "Fwd IAT Mean": fwd_iat_mean,
-        "Fwd IAT Std": fwd_iat_std,
-        "Fwd IAT Max": fwd_iat_max,
-        "Fwd IAT Min": fwd_iat_min,
-        "Bwd IAT Total": bwd_iat_total,
-        "Bwd IAT Mean": bwd_iat_mean,
-        "Bwd IAT Std": bwd_iat_std,
-        "Bwd IAT Max": bwd_iat_max,
-        "Bwd IAT Min": bwd_iat_min,
-        "Fwd PSH Flags": fwd_psh_count,
-        "Fwd Header Length": statistics.mean(fwd_header_lengths) if fwd_header_lengths else 0,
-        "Bwd Header Length": statistics.mean(bwd_header_lengths) if bwd_header_lengths else 0,
-        "Fwd Packets/s": fwd_packets_per_sec,
-        "Bwd Packets/s": bwd_packets_per_sec,
-        "Packet Length Max": packet_length_max,
-        "Packet Length Mean": packet_length_mean,
-        "Packet Length Std": packet_length_std,
-        "Packet Length Variance": packet_length_variance,
-        "SYN Flag Count": syn_flag_count,
-        "URG Flag Count": urg_flag_count,
         "Avg Packet Size": avg_packet_size,
+        "Packet Length Mean": packet_length_mean,
+        "Bwd Packet Length Std": bwd_packet_length_std,
+        "Packet Length Variance": packet_length_variance,
+        "Bwd Packet Length Max": bwd_packet_length_max,
+        "Packet Length Max": packet_length_max,
+        "Packet Length Std": packet_length_std,
+        "Fwd Packet Length Mean": fwd_mean,
         "Avg Fwd Segment Size": avg_fwd_segment_size,
+        "Flow Bytes/s": flow_bytes_per_sec,
         "Avg Bwd Segment Size": avg_bwd_segment_size,
-        "Subflow Fwd Packets": subflow_fwd_packets,
-        "Subflow Fwd Bytes": subflow_fwd_bytes,
-        "Subflow Bwd Packets": subflow_bwd_packets,
-        "Subflow Bwd Bytes": subflow_bwd_bytes,
+        "Bwd Packet Length Mean": bwd_packet_length_mean,
+        "Fwd Packets/s": fwd_packets_per_sec,
+        "Flow Packets/s": flow_packets_per_sec,
         "Init Fwd Win Bytes": init_fwd_win_bytes,
-        "Init Bwd Win Bytes": init_bwd_win_bytes,
+        "Subflow Fwd Bytes": subflow_fwd_bytes,
+        "Fwd Packets Length Total": fwd_packets_length_total,
         "Fwd Act Data Packets": fwd_act_data_packets,
-        "Fwd Seg Size Min": fwd_seg_size_min,
-        "Active Mean": active_mean,
-        "Active Std": active_std,
-        "Active Max": active_max,
-        "Active Min": active_min,
-        "Idle Mean": idle_mean,
-        "Idle Std": idle_std,
-        "Idle Max": idle_max,
-        "Idle Min": idle_min
+        "Total Fwd Packets": total_fwd_packets,
+        "Subflow Fwd Packets": subflow_fwd_packets
     }
 
     return pd.DataFrame([features])
+
+# --------------------------------------------------------------------------------
+# ROUTES: KNN CLASSIFICATION
+# --------------------------------------------------------------------------------
 
 @app.route('/')
 def home():
@@ -410,30 +262,23 @@ def classify():
         return jsonify({"error": "No file selected"}), 400
 
     file_ext = os.path.splitext(file.filename)[1].lower()
-    
-    # Process based on file type.
-    if file_ext == ".pcap":
-        df = extract_features_from_pcap(file)
-    elif file_ext == ".csv":
-        df = pd.read_csv(file)
-    elif file_ext == ".json":
-        df = pd.read_json(file)
-    else:
-        return jsonify({"error": "Unsupported file type. Only pcap, csv, or json files are supported."}), 400
+    if file_ext != ".pcap":
+        return jsonify({"error": "Unsupported file type. Only pcap files are supported."}), 400
+
+    # Extract features from the pcap file
+    df = extract_features_from_pcap(file)
 
     # Ensure the DataFrame has the required columns.
     try:
         X = df[TRAINING_COLUMNS]
     except KeyError as e:
-        return jsonify({"error": f"Uploaded file does not have the required columns: {str(e)}"}), 400
+        return jsonify({"error": f"Extracted features missing required columns: {str(e)}"}), 400
 
-    # Scale the features using the pre-loaded scaler.
+    # Scale features and predict using the KNN model.
     X_scaled = scaler.transform(X)
-
-    # Predict with the KNN model.
     predictions = knn_model.predict(X_scaled)
 
-    # Count predictions mapped to our front-end categories.
+    # Map predictions to front-end categories and count occurrences.
     threat_counts = {
         "benign": 0,
         "botnet": 0,
@@ -456,5 +301,168 @@ def classify():
 def homepage():
     return render_template('homepage.html')
 
+# --------------------------------------------------------------------------------
+# ROUTES: PHISHING DETECTION
+# --------------------------------------------------------------------------------
+
+def extract_email_text(message):
+    try:
+        parts = message['payload']['parts']
+        for part in parts:
+            if part['mimeType'] == 'text/plain':
+                data = part['body']['data']
+                text = base64.urlsafe_b64decode(data).decode('utf-8')
+                return text
+    except Exception:
+        pass
+    return message.get('snippet', '')
+
+def check_phishing(content):
+    prompt = (
+        "Analyze this email for phishing. Provide detailed analysis and conclude with "
+        "either 'YES' (phishing) or 'NO' (legitimate):\n\n" + content
+    )
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a cybersecurity expert analyzing emails for phishing attempts."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.3
+    )
+    return response['choices'][0]['message']['content']
+
+def analyze_emails(task_id, credentials_dict):
+    try:
+        creds = Credentials(
+            token=credentials_dict['token'],
+            refresh_token=credentials_dict['refresh_token'],
+            token_uri=credentials_dict['token_uri'],
+            client_id=credentials_dict['client_id'],
+            client_secret=credentials_dict['client_secret'],
+            scopes=credentials_dict['scopes']
+        )
+        
+        service = build('gmail', 'v1', credentials=creds)
+        results = service.users().messages().list(userId='me', maxResults=NUM_EMAILS).execute()
+        messages = results.get('messages', [])
+
+        if not messages:
+            analysis_results[task_id] = []
+            task_status[task_id] = 'completed'
+            return
+
+        results_list = []
+        for msg in messages:
+            full_message = service.users().messages().get(userId='me', id=msg['id']).execute()
+            subject = next(
+                (header['value'] for header in full_message['payload']['headers']
+                 if header['name'] == 'Subject'), ""
+            )
+
+            content = extract_email_text(full_message)
+            verdict = check_phishing(f"Subject: {subject}\n\nBody: {content}")
+            
+            is_phishing = "YES" in verdict.upper()
+            results_list.append({
+                'id': msg['id'],
+                'subject': subject,
+                'content_preview': content[:300] + '...' if len(content) > 300 else content,
+                'verdict': verdict,
+                'is_phishing': is_phishing,
+                'received_at': full_message['internalDate']
+            })
+        
+        analysis_results[task_id] = results_list
+        task_status[task_id] = 'completed'
+    except Exception as e:
+        print(f"Analysis error: {str(e)}")
+        analysis_results[task_id] = None
+        task_status[task_id] = 'failed'
+
+@app.route('/phishing')
+def phishing_main():
+    if 'task_id' in session:
+        task_id = session['task_id']
+        if task_status.get(task_id) == 'completed':
+            results = analysis_results.get(task_id, [])
+            if results is not None:
+                return render_template('dashboard.html', results=results)
+            return render_template('error.html', message="Analysis failed - please try again")
+        return render_template('analyzing.html')
+    return render_template('phishing.html')
+
+@app.route('/login')
+def login():
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true'
+    )
+    session['state'] = state
+    return redirect(authorization_url)
+
+@app.route('/callback')
+def callback():
+    flow.fetch_token(authorization_response=request.url)
+    credentials = flow.credentials
+    
+    # Create a unique task ID
+    task_id = str(uuid.uuid4())
+    session['task_id'] = task_id
+    session['credentials'] = {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+    
+    # Initialize task status
+    task_status[task_id] = 'processing'
+    
+    # Start analysis in background
+    thread = threading.Thread(
+        target=analyze_emails,
+        args=(task_id, session['credentials'])
+    )
+    thread.start()
+    
+    return redirect(url_for('phishing_main'))
+
+@app.route('/status')
+def status():
+    task_id = session.get('task_id')
+    if not task_id:
+        return jsonify({'status': 'no_task'}), 404
+    
+    if task_id not in task_status:
+        return jsonify({'status': 'not_found'}), 404
+    
+    return jsonify({
+        'status': task_status[task_id],
+        'results': analysis_results.get(task_id)
+    })
+
+@app.route('/logout')
+def logout():
+    task_id = session.get('task_id')
+    if task_id in analysis_results:
+        del analysis_results[task_id]
+    if task_id in task_status:
+        del task_status[task_id]
+    session.clear()
+    return redirect(url_for('phishing_main'))
+
+# --------------------------------------------------------------------------------
+# MAIN ENTRY POINT
+# --------------------------------------------------------------------------------
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)
