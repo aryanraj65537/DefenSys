@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results - Defensys</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --danger: #ef233c;
+            --success: #2ecc71;
+            --warning: #ff9f1c;
+            --dark: #1a1a2e;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --border-radius: 12px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7ff;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 0.9rem;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        h1 {
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+            color: var(--dark);
+        }
+        
+        .summary-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .summary-item {
+            text-align: center;
+            padding: 0 1rem;
+        }
+        
+        .summary-item h3 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .summary-item.danger h3 {
+            color: var(--danger);
+        }
+        
+        .summary-item.success h3 {
+            color: var(--success);
+        }
+        
+        .summary-item.warning h3 {
+            color: var(--warning);
+        }
+        
+        .email-list {
+            display: grid;
+            gap: 1.5rem;
+        }
+        
+        .email-card {
+            background: white;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .email-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .email-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .email-header.danger {
+            background-color: rgba(239, 35, 60, 0.1);
+            border-left: 4px solid var(--danger);
+        }
+        
+        .email-header.success {
+            background-color: rgba(46, 204, 113, 0.1);
+            border-left: 4px solid var(--success);
+        }
+        
+        .email-subject {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .tag-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .tag-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .email-content {
+            padding: 1.5rem;
+        }
+        
+        .email-preview {
+            color: var(--gray);
+            margin-bottom: 1rem;
+            white-space: pre-wrap;
+        }
+        
+        .verdict {
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-top: 1rem;
+            background-color: #f8f9fa;
+            position: relative;
+        }
+        
+        .verdict:before {
+            content: "AI Analysis";
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--gray);
+            margin-bottom: 0.5rem;
+        }
+        
+        .verdict.danger {
+            background-color: rgba(239, 35, 60, 0.05);
+            border-left: 3px solid var(--danger);
+        }
+        
+        .verdict.success {
+            background-color: rgba(46, 204, 113, 0.05);
+            border-left: 3px solid var(--success);
+        }
+        
+        .verdict-text {
+            white-space: pre-wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .summary-card {
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+            
+            .summary-item {
+                padding: 0.5rem 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Defensys</div>
+            <a href="/logout" class="btn btn-outline">
+                <i class="fas fa-sign-out-alt"></i> Sign Out
+            </a>
+        </header>
+        
+        <h1>Email Security Analysis</h1>
+        
+        <div class="summary-card">
+            <div class="summary-item">
+                <h3>{{ results|length }}</h3>
+                <p>Emails Analyzed</p>
+            </div>
+            <div class="summary-item danger">
+                <h3>{{ results|selectattr('is_phishing')|list|length }}</h3>
+                <p>Potential Threats</p>
+            </div>
+            <div class="summary-item success">
+                <h3>{{ results|rejectattr('is_phishing')|list|length }}</h3>
+                <p>Safe Emails</p>
+            </div>
+        </div>
+        
+        <div class="email-list">
+            {% for email in results %}
+            <div class="email-card">
+                <div class="email-header {% if email.is_phishing %}danger{% else %}success{% endif %}">
+                    <div class="email-subject">{{ email.subject }}</div>
+                    <div class="tag {% if email.is_phishing %}tag-danger{% else %}tag-success{% endif %}">
+                        {% if email.is_phishing %}Phishing{% else %}Safe{% endif %}
+                    </div>
+                </div>
+                <div class="email-content">
+                    <div class="email-preview">{{ email.content_preview }}</div>
+                    <div class="verdict {% if email.is_phishing %}danger{% else %}success{% endif %}">
+                        <div class="verdict-text">{{ email.verdict }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
