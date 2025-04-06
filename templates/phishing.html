@@ -1,125 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Email Phishing Scanner</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 40px;
-      background-color: black;
-      font-family: sans-serif;
-      color: white;
-    }
-    h1 {
-      text-align: center;
-      color: cyan;
-    }
-    .scanner-form {
-      max-width: 600px;
-      margin: 100px auto;
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-    input, textarea, button {
-      font-size: 16px;
-      border-radius: 8px;
-      padding: 10px;
-      border: none;
-    }
-    input, textarea {
-      background: #1c1c1c;
-      color: white;
-    }
-    button {
-      background: cyan;
-      color: black;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .result-box {
-      background: #1e1e1e;
-      margin-top: 30px;
-      padding: 20px;
-      border-radius: 10px;
-    }
-    .verdict.safe { color: #4caf50; font-weight: bold; }
-    .verdict.phishy { color: #f44336; font-weight: bold; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defensys - Email Security</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --danger: #ef233c;
+            --success: #2ecc71;
+            --dark: #1a1a2e;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --border-radius: 12px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7ff;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+            max-width: 800px;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, #4361ee, #3a0ca3);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--gray);
+            margin-bottom: 2rem;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+        
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            color: var(--primary);
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+        }
+    </style>
 </head>
 <body>
-
-  <h1>Email Phishing Scanner</h1>
-
-  <div class="scanner-form">
-    <input type="text" id="subject" placeholder="Email Subject" />
-    <input type="text" id="sender" placeholder="Sender Email" />
-    <textarea id="body" placeholder="Email Body" rows="6"></textarea>
-    <button onclick="scanEmail()">Scan for Phishing</button>
-  </div>
-
-  <div id="result" class="result-box" style="display: none;">
-    <h2>GPT Verdict</h2>
-    <div id="verdict" class="verdict"></div>
-    <div id="reasons" style="margin-top: 10px;"></div>
-  </div>
-
-  <script>
-    async function scanEmail() {
-      const subject = document.getElementById("subject").value;
-      const sender = document.getElementById("sender").value;
-      const body = document.getElementById("body").value;
-      const resultBox = document.getElementById("result");
-      const verdictEl = document.getElementById("verdict");
-      const reasonsEl = document.getElementById("reasons");
-
-      const prompt = `
-You are a cybersecurity assistant helping detect phishing emails.
-Analyze the email based on the following fields:
-
-Subject: "${subject}"
-Sender: "${sender}"
-Body: "${body}"
-
-Return a short verdict (either "This email is likely a phishing attempt" or "This email appears safe"), then list key reasons why you reached that conclusion. Focus on sender address trustworthiness, urgent or manipulative language, fake prize/alert messages, and suspicious phrases like "click here" or "verify your account".
-Format response like:
-
-Verdict: [your verdict here]
-Reasons:
-- [reason 1]
-- [reason 2]
-`;
-
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "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" // <<< Replace this
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.2
-        })
-      });
-
-      const data = await response.json();
-      const text = data.choices[0].message.content;
-
-      // Display result
-      resultBox.style.display = "block";
-
-      const [verdictLine, ...reasonLines] = text.trim().split("\n").filter(l => l.trim() !== "");
-      const verdictText = verdictLine.replace("Verdict: ", "");
-      const reasons = reasonLines.map(r => r.replace(/^[-•]\s*/, ""));
-
-      verdictEl.textContent = verdictText;
-      verdictEl.className = "verdict " + (verdictText.includes("phishing") ? "phishy" : "safe");
-      reasonsEl.innerHTML = "<ul>" + reasons.map(r => `<li>${r}</li>`).join("") + "</ul>";
-    }
-  </script>
-
+    <div class="container">
+        <div class="logo">Defensys</div>
+        <div class="hero">
+            <h1>Protect Yourself From Phishing Attacks</h1>
+            <p>Scan your Gmail inbox for suspicious emails using advanced AI detection. Get instant analysis of potential phishing attempts.</p>
+            <a href="/login" class="btn btn-primary">Sign in with Google</a>
+        </div>
+    </div>
 </body>
 </html>
