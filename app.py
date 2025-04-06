@@ -38,7 +38,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 # OPENAI / PHISHING DETECTION CONFIGURATION
 # --------------------------------------------------------------------------------
 
-CREDENTIALS_FILE = 'client_secret_903427469855-lfuog49uqdva54j2i02tujirj559jpro.apps.googleusercontent.com.json'
+CREDENTIALS_FILE = 'client_secret_903427469855-cs1cafpa23uk5783769ndl8npoksrmq9.apps.googleusercontent.com.json'
 NUM_EMAILS = 5
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
