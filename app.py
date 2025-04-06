@@ -18,6 +18,10 @@ from googleapiclient.discovery import build
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
+# NEW IMPORTS for downloading the model
+import requests
+from io import BytesIO
+
 load_dotenv()
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
@@ -57,7 +61,15 @@ task_status = {}
 # KNN MODEL / SCALER LOADING
 # --------------------------------------------------------------------------------
 
-knn_model = joblib.load("knn_model.pkl")
+# Download the knn_model.pkl from GitHub Releases instead of loading locally.
+model_url = "https://github.com/aryanraj65537/DefenSys/releases/download/knn_model.pkl/knn_model.pkl"
+response = requests.get(model_url)
+if response.status_code == 200:
+    knn_model = joblib.load(BytesIO(response.content))
+else:
+    raise Exception(f"Failed to download KNN model, status code: {response.status_code}")
+
+# Load scaler normally from local file.
 scaler = joblib.load("scaler.pkl")
 
 # --------------------------------------------------------------------------------
