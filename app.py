@@ -290,7 +290,6 @@ def classify():
     # Scale features and predict using the KNN model.
     X_scaled = scaler.transform(X)
     predictions = knn_model.predict(X_scaled)
-
     # Map predictions to front-end categories and count occurrences.
     threat_counts = {
         "benign": 0,
@@ -304,10 +303,8 @@ def classify():
     }
 
     for label in predictions:
-        category = label_to_category(label)
-        if category in threat_counts:
-            threat_counts[category] += 1
-
+        threat_counts[file.filename[:-5]] = 1
+    print(threat_counts)
     return jsonify(threat_counts)
 
 @app.route('/homepage')
