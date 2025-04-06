@@ -41,7 +41,6 @@
       transition: background 0.3s ease;
       z-index: 999;
     }
-
     .back-button:hover {
       background: linear-gradient(90deg, #09f, #0ff);
     }
@@ -54,11 +53,9 @@
     .file-input-container {
       margin-bottom: 30px;
     }
-
     .file-input-container input[type="file"] {
       display: none;
     }
-
     .file-input-container label {
       padding: 15px;
       background-color: #444;
@@ -73,7 +70,6 @@
       text-align: center;
       transition: background-color 0.3s ease;
     }
-
     .file-input-container label:hover {
       background-color: #333;
     }
@@ -88,7 +84,6 @@
       cursor: pointer;
       border: none;
     }
-
     .submit-button:hover {
       background: linear-gradient(90deg, #09f, #0ff);
     }
@@ -99,7 +94,6 @@
       gap: 20px;
       margin-top: 50px;
     }
-
     .card {
       position: relative;
       height: 150px;
@@ -119,17 +113,14 @@
       padding: 15px;
       text-align: center;
     }
-
     .card.grayed-out {
       opacity: 0.3;
       pointer-events: none;
     }
-
     .card.active {
       transform: scale(1.05);
       box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.3);
     }
-
     .card .count-circle {
       position: absolute;
       top: 10px;
@@ -145,22 +136,21 @@
       font-size: 14px;
       font-weight: bold;
     }
-
     .card-description {
       font-size: 13px;
       margin-top: 10px;
       opacity: 0.9;
     }
 
-    /* Colors */
-    .card.normal-traffic { background-color: #8bc34a; }
-    .card.ddos { background-color: #2196f3; }
-    .card.port-scan { background-color: #4caf50; }
+    /* Colors for each card category */
+    .card.benign { background-color: #8bc34a; }
     .card.botnet { background-color: #ff9800; }
-    .card.injection { background-color: #00bcd4; }
-    .card.data-exfiltration { background-color: #e91e63; }
-    .card.web-shell { background-color: #9c27b0; }
-    .card.malware { background-color: #673ab7; }
+    .card.bruteforce { background-color: #00bcd4; }
+    .card.dos { background-color: #2196f3; }
+    .card.ddos { background-color: #1976d2; }
+    .card.infiltration { background-color: #e91e63; }
+    .card.portscan { background-color: #4caf50; }
+    .card.webattack { background-color: #9c27b0; }
   </style>
 </head>
 
@@ -177,50 +167,63 @@
     <button class="submit-button" id="submitButton">Submit File</button>
 
     <div class="card-container">
-      <div class="card normal-traffic grayed-out" id="normalTrafficCard">
-        <div class="count-circle" id="normalTrafficCount">0</div>
-        Normal Traffic
+      <div class="card benign grayed-out" id="benignCard">
+        <div class="count-circle" id="benignCount">0</div>
+        Benign
         <div class="card-description">Traffic that is typical and not indicative of an attack.</div>
-      </div>
-      <div class="card ddos grayed-out" id="ddosCard">
-        <div class="count-circle" id="ddosCount">0</div>
-        DDoS
-        <div class="card-description">Distributed Denial of Service flooding attack.</div>
-      </div>
-      <div class="card port-scan grayed-out" id="portScanCard">
-        <div class="count-circle" id="portScanCount">0</div>
-        Port Scan
-        <div class="card-description">Scanning for open ports on the target system.</div>
       </div>
       <div class="card botnet grayed-out" id="botnetCard">
         <div class="count-circle" id="botnetCount">0</div>
         Botnet
         <div class="card-description">Traffic from a network of compromised devices.</div>
       </div>
-      <div class="card injection grayed-out" id="injectionCard">
-        <div class="count-circle" id="injectionCount">0</div>
-        Injection Attack
-        <div class="card-description">Malicious code injection attack.</div>
+      <div class="card bruteforce grayed-out" id="bruteforceCard">
+        <div class="count-circle" id="bruteforceCount">0</div>
+        Bruteforce
+        <div class="card-description">Repeated attempts to gain unauthorized access.</div>
       </div>
-      <div class="card data-exfiltration grayed-out" id="dataExfiltrationCard">
-        <div class="count-circle" id="dataExfiltrationCount">0</div>
-        Data Exfiltration
-        <div class="card-description">Unauthorized transfer of sensitive data.</div>
+      <div class="card dos grayed-out" id="dosCard">
+        <div class="count-circle" id="dosCount">0</div>
+        DoS
+        <div class="card-description">Denial of Service attack causing disruption.</div>
       </div>
-      <div class="card web-shell grayed-out" id="webShellCard">
-        <div class="count-circle" id="webShellCount">0</div>
-        Web Shell
-        <div class="card-description">Unauthorized remote command execution via web server.</div>
+      <div class="card ddos grayed-out" id="ddosCard">
+        <div class="count-circle" id="ddosCount">0</div>
+        DDos
+        <div class="card-description">Distributed Denial of Service attack from multiple sources.</div>
       </div>
-      <div class="card malware grayed-out" id="malwareCard">
-        <div class="count-circle" id="malwareCount">0</div>
-        Malware
-        <div class="card-description">Malicious software activity detected.</div>
+      <div class="card infiltration grayed-out" id="infiltrationCard">
+        <div class="count-circle" id="infiltrationCount">0</div>
+        Infiltration
+        <div class="card-description">Unauthorized access to internal systems.</div>
+      </div>
+      <div class="card portscan grayed-out" id="portscanCard">
+        <div class="count-circle" id="portscanCount">0</div>
+        Portscan
+        <div class="card-description">Scanning network ports to identify vulnerabilities.</div>
+      </div>
+      <div class="card webattack grayed-out" id="webattackCard">
+        <div class="count-circle" id="webattackCount">0</div>
+        Webattack
+        <div class="card-description">Attack targeting web applications.</div>
       </div>
     </div>
   </div>
 
   <script>
+    // On page load, initialize counts and grayed-out state for all cards.
+    window.onload = function() {
+      const threatTypes = [
+        'benign', 'botnet', 'bruteforce', 'dos', 'ddos', 'infiltration', 'portscan', 'webattack'
+      ];
+      threatTypes.forEach(type => {
+        document.getElementById(`${type}Count`).textContent = 0;
+        document.getElementById(`${type}Card`).classList.add('grayed-out');
+        document.getElementById(`${type}Card`).classList.remove('active');
+      });
+    };
+
+    // When "Submit File" is clicked, send the file to the server.
     document.getElementById('submitButton').addEventListener('click', function() {
       const fileInput = document.getElementById('trafficFile');
       const file = fileInput.files[0];
@@ -230,39 +233,36 @@
         return;
       }
 
-      const reader = new FileReader();
+      const formData = new FormData();
+      formData.append('file', file);
 
-      reader.onload = function(event) {
-        const fileContent = event.target.result;
-
-        // Simulated model output
-        const threatCounts = {
-          normalTraffic: 50,
-          ddos: 0,
-          portScan: 10,
-          botnet: 3,
-          injection: 1,
-          dataExfiltration: 0,
-          webShell: 2,
-          malware: 4
-        };
-
-        updateCards(threatCounts);
-      };
-
-      reader.readAsText(file);
+      fetch('/classify', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+        updateCards(data);
+      })
+      .catch(err => {
+        console.error('Error uploading file:', err);
+      });
     });
 
+    // Update card states based on threat counts from the server.
     function updateCards(threatCounts) {
-      const threatTypes = ['normalTraffic', 'ddos', 'portScan', 'botnet', 'injection', 'dataExfiltration', 'webShell', 'malware'];
-
+      const threatTypes = [
+        'benign', 'botnet', 'bruteforce', 'dos', 'ddos', 'infiltration', 'portscan', 'webattack'
+      ];
       threatTypes.forEach(type => {
         const card = document.getElementById(`${type}Card`);
         const countCircle = document.getElementById(`${type}Count`);
-        const count = threatCounts[type];
-
+        const count = threatCounts[type] || 0;
         countCircle.textContent = count;
-
         if (count > 0) {
           card.classList.add('active');
           card.classList.remove('grayed-out');
@@ -272,17 +272,6 @@
         }
       });
     }
-
-    // Initialize cards to grayed-out with 0 counts
-    window.onload = function() {
-      const threatTypes = ['normalTraffic', 'ddos', 'portScan', 'botnet', 'injection', 'dataExfiltration', 'webShell', 'malware'];
-      threatTypes.forEach(type => {
-        const card = document.getElementById(`${type}Card`);
-        const countCircle = document.getElementById(`${type}Count`);
-        countCircle.textContent = 0;
-        card.classList.add('grayed-out');
-      });
-    };
   </script>
 </body>
 </html>
