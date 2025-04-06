@@ -46,8 +46,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 flow = Flow.from_client_secrets_file(
     CREDENTIALS_FILE,
-    scopes=SCOPES,
-    redirect_uri='http://localhost:5000/callback'
+    scopes=SCOPES
 )
 
 # --------------------------------------------------------------------------------
@@ -417,6 +416,7 @@ def phishing_main():
 
 @app.route('/login')
 def login():
+    flow.redirect_uri = url_for('callback', _external=True)
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true'
