@@ -154,7 +154,7 @@ def callback():
     )
     thread.start()
     
-    return redirect(url_for('phishing'))
+    return redirect(url_for('index'))
 
 @app.route('/status')
 def status():
@@ -178,7 +178,7 @@ def logout():
     if task_id in task_status:
         del task_status[task_id]
     session.clear()
-    return redirect(url_for('phishing'))
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     app.run(debug=True, threaded=True)
