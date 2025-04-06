@@ -1,0 +1,10 @@
+Flask
+pandas
+numpy
+joblib
+scapy
+openai==0.28
+google-auth
+google-auth-oauthlib
+google-api-python-client
+python-dotenv

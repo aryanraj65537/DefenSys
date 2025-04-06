@@ -16,6 +16,11 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from werkzeug.middleware.proxy_fix import ProxyFix
+from dotenv import load_dotenv
+
+load_dotenv()
+
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # --------------------------------------------------------------------------------
 # FLASK APP INITIALIZATION
@@ -28,9 +33,6 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 # --------------------------------------------------------------------------------
 # OPENAI / PHISHING DETECTION CONFIGURATION
 # --------------------------------------------------------------------------------
-
-OPENAI_API_KEY = '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'
-openai.api_key = OPENAI_API_KEY
 
 CREDENTIALS_FILE = 'client_secret_903427469855-lfuog49uqdva54j2i02tujirj559jpro.apps.googleusercontent.com.json'
 NUM_EMAILS = 5
@@ -322,7 +324,9 @@ def check_phishing(content):
         "Analyze this email for phishing. Provide detailed analysis and conclude with "
         "either 'YES' (phishing) or 'NO' (legitimate):\n\n" + content
     )
-    response = openai.ChatCompletion.create(
+    # Import ChatCompletion directly from openai per the new version's API
+    from openai import ChatCompletion
+    response = ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
             {
@@ -336,7 +340,8 @@ def check_phishing(content):
         ],
         temperature=0.3
     )
-    return response['choices'][0]['message']['content']
+    # Access the response attributes using dot notation
+    return response.choices[0].message.content
 
 def analyze_emails(task_id, credentials_dict):
     try:
