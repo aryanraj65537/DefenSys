@@ -116,7 +116,7 @@ def index():
                 return render_template('dashboard.html', results=results)
             return render_template('error.html', message="Analysis failed - please try again")
         return render_template('analyzing.html')
-    return render_template('index.html')
+    return render_template('phishing.html')
 
 @app.route('/login')
 def login():
@@ -154,7 +154,7 @@ def callback():
     )
     thread.start()
     
-    return redirect(url_for('index'))
+    return redirect(url_for('phishing'))
 
 @app.route('/status')
 def status():
@@ -178,7 +178,7 @@ def logout():
     if task_id in task_status:
         del task_status[task_id]
     session.clear()
-    return redirect(url_for('index'))
+    return redirect(url_for('phishing'))
 
 if __name__ == '__main__':
     app.run(debug=True, threaded=True)
