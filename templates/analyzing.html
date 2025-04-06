@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyzing Emails - Defensys</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --dark: #1a1a2e;
+            --light: #f8f9fa;
+            --border-radius: 12px;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7ff;
+            color: var(--dark);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        .analyzing-container {
+            text-align: center;
+            max-width: 500px;
+            padding: 2rem;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+        }
+        
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            color: #555;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(67, 97, 238, 0.2);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto 2rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .progress-text {
+            font-size: 0.9rem;
+            color: var(--primary);
+            margin-top: 1rem;
+        }
+        
+        .error-message {
+            color: #ef233c;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="analyzing-container">
+        <div class="spinner"></div>
+        <h1>Analyzing Your Emails</h1>
+        <p>We're scanning your most recent emails for potential phishing attempts.</p>
+        <div class="progress-text" id="progressText">Starting analysis...</div>
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+    </div>
+
+    <script>
+        function checkStatus() {
+            fetch('/status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network error');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'completed') {
+                        window.location.href = '/';
+                    } else if (data.status === 'processing') {
+                        document.getElementById('progressText').textContent = 
+                            `Analyzing... (${Math.floor(Math.random() * 80 + 20)}% complete)`;
+                        setTimeout(checkStatus, 2000);
+                    } else if (data.status === 'failed') {
+                        showError("Analysis failed. Please try again.");
+                    } else {
+                        showError("Unexpected status: " + data.status);
+                    }
+                })
+                .catch(error => {
+                    showError("Connection error. Retrying...");
+                    setTimeout(checkStatus, 3000);
+                });
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        // Start checking status when page loads
+        document.addEventListener('DOMContentLoaded', checkStatus);
+    </script>
+</body>
+</html>
